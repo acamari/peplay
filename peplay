@@ -86,6 +86,7 @@ print $pcm;
 
 # parse a note in text returns note frequency in hz and duration, 'return' in case of error
 # format: [duration]note_name[modifier]note_octave
+# XXX reimplement this as a regex?
 sub
 parse($)
 {
