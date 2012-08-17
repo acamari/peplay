@@ -1,0 +1,157 @@
+#!/usr/bin/env perl
+#
+# Copyright (c) 2012 Abel Abraham Camarillo Ojeda <acamari@verlet.org>
+#
+# Permission to use, copy, modify, and distribute this software for any
+# purpose with or without fee is hereby granted, provided that the above
+# copyright notice and this permission notice appear in all copies.
+#
+# THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+# WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+# MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+# ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+# WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+# ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+# OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+#
+# peplay: generates a tone using a sine function encoded (duplicated) in 2
+#	  channels of PCM audio using signed 16-bit little endian values sampled
+#	  at 44.1khz  (.wav audio...), it also receives pitches from stdin
+#	  encoded using the scientific pitch notation for the western chromatic
+#	  scale
+use strict;
+use warnings;
+
+use POSIX qw(asin);
+
+use constant DEBUG => 1; 
+use constant pi => 2 * asin(1);
+use constant semitone => 12; # no. of semitones per octave
+# C0 note in scientific pitch notation, see:
+# http://en.wikipedia.org/wiki/Scientific_pitch_notation#Table_of_note_frequencies
+use constant c0 => 16.35159783128741466717; # in hz
+
+sub logn($$);
+sub parse($);
+
+my $r	= 44_100; # samples / second
+my $bit	= 16; # bits per sample (should not be changed, for now)
+my $vol	= 0.5; # volume min: 0, max: 1
+# dies in case the note generated would be greather than the Nyquist freq for
+# the given range ($r / 2), see:
+# http://en.wikipedia.org/wiki/Nyquist_frequency
+my $maxf = ($r / 2);
+# Maximum octave that a given pitch can have, notes in this octave above Nyquist
+# frequency are ignored
+my $maxoct = 10;
+
+my $amp; # wave amplitude
+my $pcm; # PCM audio storage
+my %pitch;	# pitches in solfege (do, re, mi...), and american syntax C, D,
+		# E... and number of semitones above C0.
+my @sortpitch;	# pitches sorted by length descendently
+my @notes;
+
+%pitch = qw(do 0 re 2 mi 4 fa 5 sol 7 la 9 si 11 c 0 d 2 e 4 f 5 g 7 a 9 b 11);
+@sortpitch = sort {length($b) <=> length($a)} keys %pitch;
+
+$pcm = "";
+$amp = (2 ** ($bit - 1) - 1) * $vol;
+
+DEBUG && warn "amp: $amp\n"; 
+
+while (<>) {
+	chomp;
+	my ($t, $f);
+	for (split /\s+/) {
+		next unless ($t, $f) = parse $_;
+		push @notes, {t => $t, f => $f};
+	}
+}
+
+DEBUG && warn "notes: [",
+      join(", ", (map {"{t: ". $_->{t}. " f: ". $_->{f}. "}"} @notes)), "]\n";
+
+for my $note (@notes) {
+	for (my $i = 0; $i < ($r * $note->{t}) ; $i++) {
+		my $sample;
+
+		$sample = $amp * sin(2 * pi * $note->{f} * $i / $r);
+		#DEBUG && warn "sample: $sample\n"
+		$pcm .= pack("s<*", $sample, $sample);
+	}
+}
+
+print $pcm;
+
+# parse a note in text returns note frequency in hz and duration, 'return' in case of error
+# format: [duration]note_name[modifier]note_octave
+sub
+parse($)
+{
+	my $_ = shift;
+
+	my $dur; # pitch duration in partiture 'time', integer (first) portion
+		 # fraction, ex: 1/16 1/8 1/4 1/2 1 2 4 8 16
+	my $durfrac; # duration fraction
+	my $p;	 # pitch 
+	my $mod; # note modifier optional, flat or sharp: b or #
+	my $oct; # signed integer number, should be less or equal than 10
+	my $sm; # semitone relative to C0
+	my $f; # frequency
+
+	return unless $_;
+
+	DEBUG && warn "parse: init --------- _: $_\n";
+	$_ = lc($_);
+	DEBUG && warn "parse: lc(_): $_\n";
+	($dur, $durfrac, $_) = m!^(?:([[:digit:]]+)(?:/([[:digit:]]+))?)?(.*)$!;
+	if (!defined $dur) {
+		$dur = 1;
+	} elsif (defined $durfrac) {
+		$dur = $dur / $durfrac;
+	}
+	warn("parse: invalid duration: $dur\n"), return unless $dur > 0;
+	return unless $_;
+
+	DEBUG && warn "parse: dur: $dur\n";
+	DEBUG && warn "parse: _: $_\n";
+
+	for my $k (@sortpitch) {
+		if (substr($_, 0, length($k)) eq $k) {
+			$p = $k;
+			last;
+		}
+	}
+
+	return unless $p;
+	s/^$p//;
+	DEBUG && warn "parse: p: $p\n";
+	DEBUG && warn "parse: _: $_\n";
+	return unless defined $_;
+
+	($mod, $_) = /^(b+|#+)?(.*)$/;
+	return unless defined $_;
+	$mod = "" unless $mod;
+	DEBUG && warn "parse: mod: $mod\n";
+	$mod = ($mod =~ /^b/ ? -1 : 1) * ($mod =~ s/[b#]//g); # no. of substitutions
+	DEBUG && warn "parse: mod: $mod\n";
+	DEBUG && warn "parse: _: $_\n";
+	
+	($oct) = /^((?:-)?[[:digit:]]+)$/;
+	warn("parse: invalid octave: ", ($oct // "undef"), "\n"), return
+	    unless defined $oct and $oct <= $maxoct; 
+	s/^$oct//;
+	DEBUG && warn "parse: oct: $oct\n";
+	DEBUG && warn "parse: _: $_\n";
+
+	$sm = $pitch{$p} + semitone * $oct + $mod;
+	DEBUG && warn "parse: sm: $sm\n";
+
+	# frequency and semitones follow a log2 relationship, see:
+	# http://en.wikipedia.org/wiki/Mathematics_of_musical_scales
+	$f = 2 ** ($sm / semitone) * c0;
+	DEBUG && warn "parse: f: $f\n";
+
+	return ($dur, $f); 
+}
