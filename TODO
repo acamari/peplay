@@ -1,0 +1,4 @@
+* arbitrary 'chord' support: multiple notes played at same time
+* insert little silence at the end of each note to make them feel smoother?
+* use a kind of degraded sine wave to make notes 'fade' away? exponentially
+  degradation, some other kind?
