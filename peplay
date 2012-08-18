@@ -18,7 +18,8 @@
 #	  channels of PCM audio using signed 16-bit little endian values sampled
 #	  at 44.1khz  (.wav audio...), it also receives pitches from stdin
 #	  encoded using the scientific pitch notation for the western chromatic
-#	  scale
+#	  scale, this program is largely inspired by simetro (simple metronome
+#	  in Perl for linux)
 use strict;
 use warnings;
 
