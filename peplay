@@ -53,7 +53,8 @@ my %pitch;	# pitches in solfege (do, re, mi...), and american syntax C, D,
 my @sortpitch;	# pitches sorted by length descendently
 my @notes;
 
-%pitch = qw(do 0 re 2 mi 4 fa 5 sol 7 la 9 si 11 c 0 d 2 e 4 f 5 g 7 a 9 b 11);
+%pitch = qw(do 0 re 2 mi 4 fa 5 sol 7 la 9 si 11 c 0 d 2 e 4 f 5 g 7 a 9 b 11
+	    z silence);
 @sortpitch = sort {length($b) <=> length($a)} keys %pitch;
 
 $pcm = "";
@@ -64,6 +65,7 @@ DEBUG && warn "amp: $amp\n";
 while (<>) {
 	chomp;
 	my ($t, $f);
+	s/\|/ /g; # compass divisor
 	for (split /\s+/) {
 		next unless ($t, $f) = parse $_;
 		push @notes, {t => $t, f => $f};
@@ -131,6 +133,8 @@ parse($)
 	DEBUG && warn "parse: p: $p\n";
 	DEBUG && warn "parse: _: $_\n";
 	return unless defined $_;
+
+	return ($dur, 0) if $p eq 'z'; # silence
 
 	($mod, $_) = /^(b+|#+)?(.*)$/;
 	return unless defined $_;
