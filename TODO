@@ -2,5 +2,3 @@
 * insert little silence at the end of each note to make them feel smoother?
 * use a kind of degraded sine wave to make notes 'fade' away? exponentially
   degradation, some other kind?
-* print PCM while processing notes, don't wait until all is generated, cached in
-  mem

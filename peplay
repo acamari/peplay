@@ -47,7 +47,6 @@ my $maxf = ($r / 2);
 my $maxoct = 10;
 
 my $amp; # wave amplitude
-my $pcm; # PCM audio storage
 my %pitch;	# pitches in solfege (do, re, mi...), and american syntax C, D,
 		# E... and number of semitones above C0.
 my @sortpitch;	# pitches sorted by length descendently
@@ -57,7 +56,6 @@ my @notes;
 	    z silence);
 @sortpitch = sort {length($b) <=> length($a)} keys %pitch;
 
-$pcm = "";
 $amp = (2 ** ($bit - 1) - 1) * $vol;
 
 DEBUG && warn "amp: $amp\n"; 
@@ -81,11 +79,10 @@ for my $note (@notes) {
 
 		$sample = $amp * sin(2 * pi * $note->{f} * $i / $r);
 		#DEBUG && warn "sample: $sample\n"
-		$pcm .= pack("s<*", $sample, $sample);
+		print pack("s<*", $sample, $sample);
+
 	}
 }
-
-print $pcm;
 
 # parse a note in text returns note frequency in hz and duration, 'return' in case of error
 # format: [duration]note_name[modifier]note_octave
